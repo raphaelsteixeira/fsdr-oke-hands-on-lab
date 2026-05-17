@@ -19,8 +19,8 @@ variable "primary_region_short_name" {
   default     = null
 
   validation {
-    condition     = var.primary_region_short_name == null || can(regex("^[A-Za-z0-9-]+$", var.primary_region_short_name))
-    error_message = "primary_region_short_name can contain only letters, numbers, and hyphens."
+    condition     = var.primary_region_short_name == null || var.primary_region_short_name == "" || can(regex("^[A-Za-z0-9-]+$", var.primary_region_short_name))
+    error_message = "primary_region_short_name can be empty or contain only letters, numbers, and hyphens."
   }
 }
 
@@ -30,8 +30,8 @@ variable "standby_region_short_name" {
   default     = null
 
   validation {
-    condition     = var.standby_region_short_name == null || can(regex("^[A-Za-z0-9-]+$", var.standby_region_short_name))
-    error_message = "standby_region_short_name can contain only letters, numbers, and hyphens."
+    condition     = var.standby_region_short_name == null || var.standby_region_short_name == "" || can(regex("^[A-Za-z0-9-]+$", var.standby_region_short_name))
+    error_message = "standby_region_short_name can be empty or contain only letters, numbers, and hyphens."
   }
 }
 
@@ -48,15 +48,15 @@ variable "home_region" {
 }
 
 variable "auth" {
-  description = "OCI provider authentication mode. APIKey works with ~/.oci/config or explicit API key variables."
+  description = "Optional OCI provider authentication mode for local runs. Leave null for OCI Resource Manager."
   type        = string
-  default     = "APIKey"
+  default     = null
 }
 
 variable "config_file_profile" {
-  description = "OCI config profile to use when authenticating with API keys or security tokens."
+  description = "Optional OCI config profile to use for local runs. Leave null for OCI Resource Manager."
   type        = string
-  default     = "DEFAULT"
+  default     = null
 }
 
 variable "oci_config_file_path" {
@@ -152,16 +152,35 @@ variable "node_shape" {
   default     = "VM.Standard.E4.Flex"
 }
 
+variable "node_ocpus" {
+  description = "OCPUs for each worker node when node_shape is a Flex shape."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.node_ocpus > 0
+    error_message = "node_ocpus must be greater than 0."
+  }
+}
+
+variable "node_memory_in_gbs" {
+  description = "Memory in GB for each worker node when node_shape is a Flex shape."
+  type        = number
+  default     = 16
+
+  validation {
+    condition     = var.node_memory_in_gbs > 0
+    error_message = "node_memory_in_gbs must be greater than 0."
+  }
+}
+
 variable "node_shape_config" {
-  description = "Flex shape sizing. Set to null when using a fixed-size non-flex shape."
+  description = "Optional advanced Flex shape sizing override. Leave null to use node_ocpus and node_memory_in_gbs."
   type = object({
     ocpus         = number
     memory_in_gbs = number
   })
-  default = {
-    ocpus         = 1
-    memory_in_gbs = 16
-  }
+  default  = null
   nullable = true
 }
 

@@ -4,13 +4,25 @@ locals {
     eu-madrid-1    = "mad"
   }
 
+  home_region                        = var.home_region != null && trimspace(var.home_region) != "" ? var.home_region : var.primary_region
+  primary_region_short_name_override = var.primary_region_short_name != null && trimspace(var.primary_region_short_name) != "" ? var.primary_region_short_name : null
+  standby_region_short_name_override = var.standby_region_short_name != null && trimspace(var.standby_region_short_name) != "" ? var.standby_region_short_name : null
+  node_image_id                      = var.node_image_id != null && trimspace(var.node_image_id) != "" ? var.node_image_id : null
+  ssh_public_key                     = var.ssh_public_key != null && trimspace(var.ssh_public_key) != "" ? var.ssh_public_key : null
   primary_region_short_name = coalesce(
-    var.primary_region_short_name,
+    local.primary_region_short_name_override,
     lookup(local.known_region_short_names, var.primary_region, try(regex("^[a-z]+-(.+)-[0-9]+$", var.primary_region)[0], var.primary_region))
   )
   standby_region_short_name = coalesce(
-    var.standby_region_short_name,
+    local.standby_region_short_name_override,
     lookup(local.known_region_short_names, var.standby_region, try(regex("^[a-z]+-(.+)-[0-9]+$", var.standby_region)[0], var.standby_region))
+  )
+
+  node_shape_config = var.node_shape_config != null ? var.node_shape_config : (
+    can(regex("Flex$", var.node_shape)) ? {
+      ocpus         = var.node_ocpus
+      memory_in_gbs = var.node_memory_in_gbs
+    } : null
   )
 }
 
@@ -30,9 +42,9 @@ module "primary_oke" {
   cluster_type                 = var.cluster_type
   node_count                   = var.node_count
   node_shape                   = var.node_shape
-  node_shape_config            = var.node_shape_config
-  ssh_public_key               = var.ssh_public_key
-  node_image_id                = var.node_image_id
+  node_shape_config            = local.node_shape_config
+  ssh_public_key               = local.ssh_public_key
+  node_image_id                = local.node_image_id
   node_boot_volume_size_in_gbs = var.node_boot_volume_size_in_gbs
   node_pool_os_type            = var.node_pool_os_type
   node_pool_os_arch            = var.node_pool_os_arch
@@ -68,9 +80,9 @@ module "standby_oke" {
   cluster_type                 = var.cluster_type
   node_count                   = var.node_count
   node_shape                   = var.node_shape
-  node_shape_config            = var.node_shape_config
-  ssh_public_key               = var.ssh_public_key
-  node_image_id                = var.node_image_id
+  node_shape_config            = local.node_shape_config
+  ssh_public_key               = local.ssh_public_key
+  node_image_id                = local.node_image_id
   node_boot_volume_size_in_gbs = var.node_boot_volume_size_in_gbs
   node_pool_os_type            = var.node_pool_os_type
   node_pool_os_arch            = var.node_pool_os_arch

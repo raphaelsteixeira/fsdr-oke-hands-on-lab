@@ -1,5 +1,7 @@
 # OKE DR Hands-on Lab: Dual-Region OKE with Terraform
 
+[![Deploy to Oracle Cloud](https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg)](https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https://github.com/raphaelsteixeira/fsdr-oke-hands-on-lab/archive/refs/heads/main.zip)
+
 This Terraform creates two independent Oracle Kubernetes Engine (OKE) environments:
 
 - One OKE cluster in the primary region.
@@ -19,10 +21,27 @@ Each region gets its own VCN, public Kubernetes API endpoint subnet, private wor
 - `versions.tf` pins Terraform and the OCI provider requirements.
 - `providers.tf` configures separate OCI provider aliases for the primary and standby regions.
 - `iam-fsdr.tf` creates the Full Stack DR dynamic group and policy.
+- `schema.yaml` customizes the OCI Resource Manager stack creation form.
 - `variables.tf` defines all user-configurable values.
 - `main.tf` deploys the reusable OKE module twice.
 - `modules/oke-region/` contains the regional OKE infrastructure.
 - `terraform.tfvars.example` is a starting point for your lab values.
+
+## Deploy With OCI Resource Manager
+
+Select the **Deploy to Oracle Cloud** button above to create an OCI Resource Manager stack directly from this GitHub repository.
+
+Resource Manager opens the Create Stack workflow with this Terraform package already selected. The included `schema.yaml` groups the required inputs, hides local API-key authentication variables, and exposes student-friendly controls such as region selection, worker node count, OCPU, and memory.
+
+When creating the stack:
+
+- Choose the compartment where the Resource Manager stack will live.
+- Set `compartment_ocid` to the compartment where the lab resources should be deployed.
+- Set `primary_region` and `standby_region`.
+- Set `home_region` if your tenancy home region is different from the primary region.
+- Keep **Run apply** selected if you want Resource Manager to deploy immediately after stack creation.
+
+The deploy button uses the `main` branch zip file. For a fixed classroom version, create a GitHub release and update the button `zipUrl` to the release zip.
 
 ## Usage
 
@@ -48,7 +67,7 @@ If the primary region is not your tenancy home region, also set `home_region` to
 
 Authenticate with OCI using one of these approaches:
 
-- Use your existing `~/.oci/config` profile. The default profile is `DEFAULT`.
+- Use your existing `~/.oci/config` profile. Set `config_file_profile` only if you do not want the provider's default profile behavior.
 - Or set the optional variables in `variables.tf`: `tenancy_ocid`, `user_ocid`, `fingerprint`, and `private_key_path`.
 - Or export the equivalent `TF_VAR_*` or `OCI_*` environment variables supported by the OCI Terraform provider.
 
@@ -91,7 +110,8 @@ enable_fsdr_iam = false
 - `enable_fsdr_iam`: set to `false` if IAM is handled separately.
 - `primary_region_short_name` and `standby_region_short_name`: optionally override the short region labels used in OCI resource names. The defaults are `fra` for `eu-frankfurt-1` and `mad` for `eu-madrid-1`.
 - `node_count`: number of worker nodes in each OKE cluster; defaults to `2`.
-- `node_shape` and `node_shape_config`: change worker sizing.
+- `node_shape`, `node_ocpus`, and `node_memory_in_gbs`: change worker sizing for Flex shapes.
+- `node_shape_config`: optional advanced object override for Flex sizing.
 - `kubernetes_version`: pins both clusters to the same full OKE patch version. The default is `v1.35.2`, which Oracle announced for OKE on April 28, 2026.
 - `cluster_type`: defaults to `ENHANCED_CLUSTER`.
 - `node_pool_os_type` and `node_pool_os_arch`: control the OKE worker image family selected from OCI node pool options. The default is `OL8` and `X86_64`.

@@ -13,7 +13,7 @@ provider "oci" {
 
 provider "oci" {
   alias  = "home"
-  region = coalesce(var.home_region, var.primary_region)
+  region = local.home_region
 
   auth                 = var.auth
   config_file_profile  = var.config_file_profile

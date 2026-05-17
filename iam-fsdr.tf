@@ -1,10 +1,11 @@
 locals {
-  oci_config_file_path = var.oci_config_file_path == null ? null : pathexpand(var.oci_config_file_path)
-  oci_config_text      = local.oci_config_file_path != null && fileexists(local.oci_config_file_path) ? file(local.oci_config_file_path) : ""
-  oci_config_header    = "[${var.config_file_profile}]"
-  oci_config_sections  = split(local.oci_config_header, local.oci_config_text)
-  oci_config_profile   = length(local.oci_config_sections) > 1 ? split("\n[", local.oci_config_sections[1])[0] : ""
-  oci_config_tenancy   = try(regex("(?m)^\\s*tenancy\\s*=\\s*([^\\s#]+)", local.oci_config_profile)[0], null)
+  oci_config_file_path    = var.oci_config_file_path == null ? null : pathexpand(var.oci_config_file_path)
+  oci_config_profile_name = coalesce(var.config_file_profile, "DEFAULT")
+  oci_config_text         = local.oci_config_file_path != null && fileexists(local.oci_config_file_path) ? file(local.oci_config_file_path) : ""
+  oci_config_header       = "[${local.oci_config_profile_name}]"
+  oci_config_sections     = split(local.oci_config_header, local.oci_config_text)
+  oci_config_profile      = length(local.oci_config_sections) > 1 ? split("\n[", local.oci_config_sections[1])[0] : ""
+  oci_config_tenancy      = try(regex("(?m)^\\s*tenancy\\s*=\\s*([^\\s#]+)", local.oci_config_profile)[0], null)
 
   fsdr_iam_tenancy_ocid = try(coalesce(var.fsdr_iam_tenancy_ocid, nonsensitive(var.tenancy_ocid), local.oci_config_tenancy), null)
 

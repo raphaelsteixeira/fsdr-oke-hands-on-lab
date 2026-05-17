@@ -1,0 +1,406 @@
+title: "OKE DR Hands-on Lab"
+description: "Deploy dual-region OKE clusters with DRG peering, private Object Storage endpoints, File Storage, and Full Stack DR IAM policies."
+stackDescription: "Dual-region OKE disaster recovery hands-on lab."
+schemaVersion: 1.1.0
+version: "20260517"
+locale: "en"
+source:
+  type: web
+  reference: "https://github.com/raphaelsteixeira/fsdr-oke-hands-on-lab"
+allowViewState: false
+
+variableGroups:
+  - title: "Required Deployment Settings"
+    variables:
+      - compartment_ocid
+      - primary_region
+      - standby_region
+      - home_region
+      - name_prefix
+  - title: "OKE Cluster Settings"
+    variables:
+      - kubernetes_version
+      - cluster_type
+      - node_count
+      - node_shape
+      - node_ocpus
+      - node_memory_in_gbs
+      - node_boot_volume_size_in_gbs
+      - node_pool_os_type
+      - node_pool_os_arch
+      - max_pods_per_node
+      - ssh_public_key
+  - title: "Network Settings"
+    variables:
+      - primary_vcn_cidr
+      - primary_api_endpoint_subnet_cidr
+      - primary_worker_subnet_cidr
+      - primary_pod_subnet_cidr
+      - primary_load_balancer_subnet_cidr
+      - standby_vcn_cidr
+      - standby_api_endpoint_subnet_cidr
+      - standby_worker_subnet_cidr
+      - standby_pod_subnet_cidr
+      - standby_load_balancer_subnet_cidr
+      - kube_api_allowed_cidrs
+      - load_balancer_ingress_cidrs
+      - load_balancer_ingress_ports
+  - title: "Full Stack DR IAM"
+    variables:
+      - enable_fsdr_iam
+  - title: "Advanced Optional Settings"
+    variables:
+      - primary_region_short_name
+      - standby_region_short_name
+      - node_image_id
+      - freeform_tags
+  - title: "Local Authentication Fallbacks"
+    visible: false
+    variables:
+      - tenancy_ocid
+      - fsdr_iam_tenancy_ocid
+      - auth
+      - config_file_profile
+      - oci_config_file_path
+      - user_ocid
+      - fingerprint
+      - private_key_path
+      - private_key_password
+      - node_shape_config
+
+variables:
+  compartment_ocid:
+    type: oci:identity:compartment:id
+    title: "Deployment compartment"
+    description: "Compartment where the lab resources will be created."
+    required: true
+
+  primary_region:
+    type: oci:identity:region:name
+    title: "Primary region"
+    description: "OCI region for the primary OKE cluster."
+    required: true
+    default: "eu-frankfurt-1"
+
+  standby_region:
+    type: oci:identity:region:name
+    title: "Standby region"
+    description: "OCI region for the standby OKE cluster."
+    required: true
+    default: "eu-madrid-1"
+
+  home_region:
+    type: oci:identity:region:name
+    title: "Tenancy home region"
+    description: "Region used to create IAM resources. Leave empty to use the primary region."
+    required: false
+
+  name_prefix:
+    type: string
+    title: "Resource name prefix"
+    description: "Prefix used in OCI display names."
+    required: true
+    default: "oke-dr-lab"
+
+  kubernetes_version:
+    type: string
+    title: "Kubernetes version"
+    description: "Full OKE patch version for the control plane and worker nodes."
+    required: true
+    default: "v1.35.2"
+
+  cluster_type:
+    type: enum
+    title: "Cluster type"
+    description: "OKE cluster type."
+    required: true
+    default: "ENHANCED_CLUSTER"
+    enum:
+      - "ENHANCED_CLUSTER"
+      - "BASIC_CLUSTER"
+
+  node_count:
+    type: number
+    title: "Worker nodes per cluster"
+    description: "Number of worker nodes created in each regional OKE node pool."
+    required: true
+    default: 2
+    minimum: 1
+
+  node_shape:
+    type: string
+    title: "Worker node shape"
+    description: "Compute shape for OKE worker nodes."
+    required: true
+    default: "VM.Standard.E4.Flex"
+
+  node_ocpus:
+    type: number
+    title: "Worker node OCPUs"
+    description: "OCPUs for each worker node when using a Flex shape."
+    required: true
+    default: 1
+    minimum: 0.1
+
+  node_memory_in_gbs:
+    type: number
+    title: "Worker node memory"
+    description: "Memory in GB for each worker node when using a Flex shape."
+    required: true
+    default: 16
+    minimum: 1
+
+  node_boot_volume_size_in_gbs:
+    type: number
+    title: "Worker boot volume size"
+    description: "Boot volume size in GB for each worker node."
+    required: true
+    default: 50
+    minimum: 50
+
+  node_pool_os_type:
+    type: enum
+    title: "Worker OS"
+    description: "Operating system family for the default OKE worker image."
+    required: true
+    default: "OL8"
+    enum:
+      - "OL8"
+      - "UBUNTU"
+
+  node_pool_os_arch:
+    type: enum
+    title: "Worker architecture"
+    description: "CPU architecture for the default OKE worker image."
+    required: true
+    default: "X86_64"
+    enum:
+      - "X86_64"
+      - "AARCH64"
+
+  max_pods_per_node:
+    type: number
+    title: "Maximum pods per node"
+    description: "Maximum pods per worker node for OCI VCN-native pod networking."
+    required: true
+    default: 31
+    minimum: 1
+
+  ssh_public_key:
+    type: oci:core:ssh:publickey
+    title: "SSH public key"
+    description: "Optional SSH public key to inject into worker nodes."
+    required: false
+
+  primary_vcn_cidr:
+    type: string
+    title: "Primary VCN CIDR"
+    required: true
+    default: "10.10.0.0/16"
+
+  primary_api_endpoint_subnet_cidr:
+    type: string
+    title: "Primary API endpoint subnet CIDR"
+    required: true
+    default: "10.10.0.0/28"
+
+  primary_worker_subnet_cidr:
+    type: string
+    title: "Primary worker subnet CIDR"
+    required: true
+    default: "10.10.10.0/24"
+
+  primary_pod_subnet_cidr:
+    type: string
+    title: "Primary pod subnet CIDR"
+    required: true
+    default: "10.10.20.0/22"
+
+  primary_load_balancer_subnet_cidr:
+    type: string
+    title: "Primary load balancer subnet CIDR"
+    required: true
+    default: "10.10.30.0/24"
+
+  standby_vcn_cidr:
+    type: string
+    title: "Standby VCN CIDR"
+    required: true
+    default: "10.20.0.0/16"
+
+  standby_api_endpoint_subnet_cidr:
+    type: string
+    title: "Standby API endpoint subnet CIDR"
+    required: true
+    default: "10.20.0.0/28"
+
+  standby_worker_subnet_cidr:
+    type: string
+    title: "Standby worker subnet CIDR"
+    required: true
+    default: "10.20.10.0/24"
+
+  standby_pod_subnet_cidr:
+    type: string
+    title: "Standby pod subnet CIDR"
+    required: true
+    default: "10.20.20.0/22"
+
+  standby_load_balancer_subnet_cidr:
+    type: string
+    title: "Standby load balancer subnet CIDR"
+    required: true
+    default: "10.20.30.0/24"
+
+  kube_api_allowed_cidrs:
+    type: list
+    valueType: string
+    title: "Kubernetes API allowed CIDRs"
+    description: "CIDR blocks allowed to reach the public Kubernetes API endpoint."
+    required: false
+    default: '["0.0.0.0/0"]'
+
+  load_balancer_ingress_cidrs:
+    type: list
+    valueType: string
+    title: "Load balancer ingress CIDRs"
+    description: "CIDR blocks allowed to reach public Kubernetes service load balancers."
+    required: false
+    default: '["0.0.0.0/0"]'
+
+  load_balancer_ingress_ports:
+    type: list
+    valueType: number
+    title: "Load balancer ingress ports"
+    description: "TCP ports allowed into the public load balancer subnet."
+    required: false
+    default: '[80, 443]'
+
+  enable_fsdr_iam:
+    type: boolean
+    title: "Create Full Stack DR IAM"
+    description: "Create the dynamic group and policies required by Full Stack DR resource principals."
+    required: true
+    default: true
+
+  primary_region_short_name:
+    type: string
+    title: "Primary region short name"
+    description: "Optional short label used in primary-region resource names."
+    required: false
+
+  standby_region_short_name:
+    type: string
+    title: "Standby region short name"
+    description: "Optional short label used in standby-region resource names."
+    required: false
+
+  node_image_id:
+    type: string
+    title: "Custom worker image OCID"
+    description: "Optional region-local OKE worker image OCID. Leave empty to auto-select a compatible image."
+    required: false
+
+  freeform_tags:
+    type: map
+    valueType: string
+    title: "Freeform tags"
+    description: "Optional freeform tags applied to created resources."
+    required: false
+    default: "{}"
+
+  tenancy_ocid:
+    type: string
+    title: "Tenancy OCID"
+    required: false
+    visible: false
+    sensitive: true
+
+  fsdr_iam_tenancy_ocid:
+    type: string
+    title: "FSDR IAM tenancy OCID override"
+    required: false
+    visible: false
+
+  auth:
+    type: string
+    title: "Provider authentication mode"
+    required: false
+    visible: false
+
+  config_file_profile:
+    type: string
+    title: "OCI config profile"
+    required: false
+    visible: false
+
+  oci_config_file_path:
+    type: string
+    title: "OCI config file path"
+    required: false
+    visible: false
+
+  user_ocid:
+    type: string
+    title: "User OCID"
+    required: false
+    visible: false
+    sensitive: true
+
+  fingerprint:
+    type: string
+    title: "API key fingerprint"
+    required: false
+    visible: false
+    sensitive: true
+
+  private_key_path:
+    type: string
+    title: "Private key path"
+    required: false
+    visible: false
+    sensitive: true
+
+  private_key_password:
+    type: password
+    title: "Private key password"
+    required: false
+    visible: false
+    sensitive: true
+
+  node_shape_config:
+    type: object
+    title: "Advanced node shape config"
+    required: false
+    visible: false
+    attributes:
+      - ocpus
+      - memory_in_gbs
+
+outputs:
+  primary:
+    type: map
+    title: "Primary region"
+  standby:
+    type: map
+    title: "Standby region"
+  drg_peering:
+    type: map
+    title: "DRG peering"
+  object_storage_cross_region_access:
+    type: map
+    title: "Object Storage cross-region access"
+  fsdr_iam:
+    type: map
+    title: "Full Stack DR IAM"
+
+outputGroups:
+  - title: "Cluster Outputs"
+    outputs:
+      - primary
+      - standby
+  - title: "Disaster Recovery Outputs"
+    outputs:
+      - drg_peering
+      - object_storage_cross_region_access
+      - fsdr_iam
