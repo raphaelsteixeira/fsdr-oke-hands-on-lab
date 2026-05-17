@@ -1,0 +1,38 @@
+# Required
+compartment_ocid = "ocid1.compartment.oc1..replace-me"
+primary_region   = "eu-frankfurt-1"
+standby_region   = "eu-madrid-1"
+
+# Optional when ~/.oci/config contains tenancy for the selected profile.
+# fsdr_iam_tenancy_ocid = "ocid1.tenancy.oc1..replace-me"
+# home_region = "eu-frankfurt-1"
+
+# Optional lab naming
+name_prefix = "oke-dr-lab"
+# Optional short labels used in OCI resource names. Defaults are fra and mad for the regions above.
+# primary_region_short_name = "fra"
+# standby_region_short_name = "mad"
+
+# Optional: pin both clusters to the same OKE version.
+# v1.35.2 is supported by OKE as of the April 28, 2026 release note.
+kubernetes_version = "v1.35.2"
+cluster_type       = "ENHANCED_CLUSTER"
+
+# Optional: number of worker nodes per OKE cluster.
+node_count = 2
+
+# Optional: restrict these for a safer lab environment.
+kube_api_allowed_cidrs      = ["0.0.0.0/0"]
+load_balancer_ingress_cidrs = ["0.0.0.0/0"]
+load_balancer_ingress_ports = [80, 443]
+
+# Optional worker sizing. Set node_shape_config = null for fixed-size shapes.
+node_shape = "VM.Standard.E4.Flex"
+node_shape_config = {
+  ocpus         = 1
+  memory_in_gbs = 16
+}
+
+# Optional default image selection filters for the managed node pool.
+node_pool_os_type = "OL8"
+node_pool_os_arch = "X86_64"
