@@ -4,11 +4,17 @@ locals {
     eu-madrid-1    = "mad"
   }
 
-  home_region                        = var.home_region != null && trimspace(var.home_region) != "" ? var.home_region : var.primary_region
-  primary_region_short_name_override = var.primary_region_short_name != null && trimspace(var.primary_region_short_name) != "" ? var.primary_region_short_name : null
-  standby_region_short_name_override = var.standby_region_short_name != null && trimspace(var.standby_region_short_name) != "" ? var.standby_region_short_name : null
-  node_image_id                      = var.node_image_id != null && trimspace(var.node_image_id) != "" ? var.node_image_id : null
-  ssh_public_key                     = var.ssh_public_key != null && trimspace(var.ssh_public_key) != "" ? var.ssh_public_key : null
+  home_region_input                        = try(trimspace(var.home_region), "")
+  primary_region_short_name_override_input = try(trimspace(var.primary_region_short_name), "")
+  standby_region_short_name_override_input = try(trimspace(var.standby_region_short_name), "")
+  node_image_id_input                      = try(trimspace(var.node_image_id), "")
+  ssh_public_key_input                     = try(trimspace(var.ssh_public_key), "")
+
+  home_region                        = local.home_region_input != "" ? local.home_region_input : var.primary_region
+  primary_region_short_name_override = local.primary_region_short_name_override_input != "" ? local.primary_region_short_name_override_input : null
+  standby_region_short_name_override = local.standby_region_short_name_override_input != "" ? local.standby_region_short_name_override_input : null
+  node_image_id                      = local.node_image_id_input != "" ? local.node_image_id_input : null
+  ssh_public_key                     = local.ssh_public_key_input != "" ? local.ssh_public_key_input : null
   primary_region_short_name = coalesce(
     local.primary_region_short_name_override,
     lookup(local.known_region_short_names, var.primary_region, try(regex("^[a-z]+-(.+)-[0-9]+$", var.primary_region)[0], var.primary_region))

@@ -1,6 +1,9 @@
 locals {
-  oci_config_file_path    = var.oci_config_file_path == null ? null : pathexpand(var.oci_config_file_path)
-  oci_config_profile_name = coalesce(var.config_file_profile, "DEFAULT")
+  oci_config_file_path_input    = try(trimspace(var.oci_config_file_path), "")
+  oci_config_profile_name_input = try(trimspace(var.config_file_profile), "")
+
+  oci_config_file_path    = local.oci_config_file_path_input != "" ? pathexpand(local.oci_config_file_path_input) : null
+  oci_config_profile_name = local.oci_config_profile_name_input != "" ? local.oci_config_profile_name_input : "DEFAULT"
   oci_config_text         = local.oci_config_file_path != null && fileexists(local.oci_config_file_path) ? file(local.oci_config_file_path) : ""
   oci_config_header       = "[${local.oci_config_profile_name}]"
   oci_config_sections     = split(local.oci_config_header, local.oci_config_text)

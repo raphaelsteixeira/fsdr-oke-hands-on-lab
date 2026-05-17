@@ -92,7 +92,7 @@ output "object_storage_cross_region_access" {
 output "fsdr_iam" {
   description = "Full Stack DR resource-principal IAM resources."
   value = var.enable_fsdr_iam && local.fsdr_iam_tenancy_ocid != null ? {
-    home_region          = coalesce(var.home_region, var.primary_region)
+    home_region          = local.home_region
     tenancy_ocid         = local.fsdr_iam_tenancy_ocid
     target_compartment   = var.compartment_ocid
     dynamic_group_id     = oci_identity_dynamic_group.fsdr_resource_principals[0].id
