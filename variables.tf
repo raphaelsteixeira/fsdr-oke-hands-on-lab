@@ -41,12 +41,6 @@ variable "name_prefix" {
   default     = "oke-dr-lab"
 }
 
-variable "home_region" {
-  description = "OCI tenancy home region used for IAM resources such as dynamic groups and policies. Defaults to primary_region."
-  type        = string
-  default     = null
-}
-
 variable "auth" {
   description = "Optional OCI provider authentication mode for local runs. Leave null for OCI Resource Manager."
   type        = string
@@ -59,29 +53,11 @@ variable "config_file_profile" {
   default     = null
 }
 
-variable "oci_config_file_path" {
-  description = "Optional OCI CLI config file path used to infer the tenancy OCID for FSDR IAM when fsdr_iam_tenancy_ocid and tenancy_ocid are not set."
-  type        = string
-  default     = "~/.oci/config"
-}
-
 variable "tenancy_ocid" {
   description = "Optional tenancy OCID for provider authentication. Can be omitted when it is already present in ~/.oci/config or environment variables."
   type        = string
   default     = null
   sensitive   = true
-}
-
-variable "enable_fsdr_iam" {
-  description = "Create the Full Stack DR resource-principal dynamic group and policies."
-  type        = bool
-  default     = true
-}
-
-variable "fsdr_iam_tenancy_ocid" {
-  description = "Tenancy/root compartment OCID used to create the FSDR dynamic group and tenancy-attached policy. Defaults to tenancy_ocid when set."
-  type        = string
-  default     = null
 }
 
 variable "user_ocid" {

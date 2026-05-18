@@ -10,15 +10,13 @@ This Terraform creates two independent Oracle Kubernetes Engine (OKE) environmen
 - A standard public/private OKE network topology per region.
 - Two private Object Storage buckets per region: one for FSDR logs and one for OKE backup.
 - One OCI File Storage file system on the primary side, with its mount target in the primary worker node subnet.
-- Full Stack DR resource-principal IAM: dynamic group and policy statements for the deployment compartment.
 
-Each region gets its own VCN, public Kubernetes API endpoint subnet, private worker subnet, private pod subnet for OCI VCN-native pod networking, public load balancer subnet, internet gateway, NAT gateway, service gateway, route tables, Network Security Groups (NSGs), and Object Storage buckets. The primary region also gets File Storage. IAM resources are created through the home-region provider alias.
+Each region gets its own VCN, public Kubernetes API endpoint subnet, private worker subnet, private pod subnet for OCI VCN-native pod networking, public load balancer subnet, internet gateway, NAT gateway, service gateway, route tables, Network Security Groups (NSGs), and Object Storage buckets. The primary region also gets File Storage.
 
 ## Files
 
 - `versions.tf` pins Terraform and the OCI provider requirements.
 - `providers.tf` configures separate OCI provider aliases for the primary and standby regions.
-- `iam-fsdr.tf` creates the Full Stack DR dynamic group and policy.
 - `schema.yaml` customizes the OCI Resource Manager stack creation form.
 - `variables.tf` defines all user-configurable values.
 - `main.tf` deploys the reusable OKE module twice.
@@ -36,7 +34,6 @@ When creating the stack:
 - Choose the compartment where the Resource Manager stack will live.
 - Set `compartment_ocid` to the compartment where the lab resources should be deployed.
 - Set `primary_region` and `standby_region`.
-- Set `home_region` if your tenancy home region is different from the primary region.
 - Keep **Run apply** selected if you want Resource Manager to deploy immediately after stack creation.
 
 The deploy button uses the `main` branch zip file. For a fixed classroom version, create a GitHub release and update the button `zipUrl` to the release zip.
@@ -56,12 +53,7 @@ compartment_ocid = "ocid1.compartment.oc1..replace-me"
 primary_region   = "eu-frankfurt-1"
 standby_region   = "eu-madrid-1"
 node_count       = 2
-
-# Optional when ~/.oci/config contains tenancy for the selected profile.
-# fsdr_iam_tenancy_ocid = "ocid1.tenancy.oc1..replace-me"
 ```
-
-If the primary region is not your tenancy home region, also set `home_region` to the home region. OCI IAM resources such as dynamic groups and tenancy-attached policies must be created in the home region.
 
 Authenticate with OCI using one of these approaches:
 
@@ -79,33 +71,12 @@ terraform apply
 
 After apply, Terraform outputs the `oci ce cluster create-kubeconfig` commands for both clusters.
 
-The outputs also include the regional Object Storage bucket names and namespaces for FSDR logs and OKE backup, the Full Stack DR IAM resource names and IDs, plus the primary File Storage mount target details.
-
-## Full Stack DR IAM
-
-By default, `enable_fsdr_iam = true` creates:
-
-- Dynamic group: `${name_prefix}-fsdr-resource-principals`
-- Policy: `${name_prefix}-fsdr-resource-principal-policy`
-
-The dynamic group matches DR protection groups, compute instances, and compute container instances in `compartment_ocid`. The policy is attached in the tenancy root because OCI IAM resources live there, while the service-management statements are scoped to `compartment_ocid`.
-
-The policy grants the Full Stack DR resource principals permissions for the services used by this lab: Full Stack DR, OKE, compute instances and agent commands, networking, block volumes, File Storage, Object Storage, load balancers, network load balancers, tag namespaces, and resource discovery.
-
-If your administrator already manages these IAM resources outside this stack, set:
-
-```hcl
-enable_fsdr_iam = false
-```
+The outputs also include the regional Object Storage bucket names and namespaces for FSDR logs and OKE backup, plus the primary File Storage mount target details.
 
 ## Useful Lab Adjustments
 
 - `primary_region` and `standby_region`: change the target regions.
 - `compartment_ocid`: change the compartment for all resources.
-- `fsdr_iam_tenancy_ocid`: tenancy/root compartment OCID used to create Full Stack DR IAM resources. Terraform can infer this from `oci_config_file_path` and `config_file_profile` when your OCI config contains a `tenancy = ...` entry.
-- `oci_config_file_path`: defaults to `~/.oci/config` and is only used as a tenancy OCID fallback for FSDR IAM.
-- `home_region`: tenancy home region for IAM resources; defaults to `primary_region`.
-- `enable_fsdr_iam`: set to `false` if IAM is handled separately.
 - `primary_region_short_name` and `standby_region_short_name`: optionally override the short region labels used in OCI resource names. The defaults are `fra` for `eu-frankfurt-1` and `mad` for `eu-madrid-1`.
 - `node_count`: number of worker nodes in each OKE cluster; defaults to `2`.
 - `node_shape`, `node_ocpus`, and `node_memory_in_gbs`: change worker sizing for Flex shapes.

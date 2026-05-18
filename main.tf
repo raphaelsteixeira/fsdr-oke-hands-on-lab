@@ -4,13 +4,11 @@ locals {
     eu-madrid-1    = "mad"
   }
 
-  home_region_input                        = try(trimspace(var.home_region), "")
   primary_region_short_name_override_input = try(trimspace(var.primary_region_short_name), "")
   standby_region_short_name_override_input = try(trimspace(var.standby_region_short_name), "")
   node_image_id_input                      = try(trimspace(var.node_image_id), "")
   ssh_public_key_input                     = try(trimspace(var.ssh_public_key), "")
 
-  home_region                        = local.home_region_input != "" ? local.home_region_input : var.primary_region
   primary_region_short_name_override = local.primary_region_short_name_override_input != "" ? local.primary_region_short_name_override_input : null
   standby_region_short_name_override = local.standby_region_short_name_override_input != "" ? local.standby_region_short_name_override_input : null
   node_image_id                      = local.node_image_id_input != "" ? local.node_image_id_input : null

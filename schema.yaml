@@ -1,5 +1,5 @@
 title: "OKE DR Hands-on Lab"
-description: "Deploy dual-region OKE clusters with Object Storage buckets, File Storage, and Full Stack DR IAM policies."
+description: "Deploy dual-region OKE clusters with Object Storage buckets and File Storage."
 stackDescription: "Dual-region OKE disaster recovery hands-on lab."
 schemaVersion: 1.1.0
 version: "20260517"
@@ -15,7 +15,6 @@ variableGroups:
       - compartment_ocid
       - primary_region
       - standby_region
-      - home_region
       - name_prefix
   - title: "OKE Cluster Settings"
     variables:
@@ -45,9 +44,6 @@ variableGroups:
       - kube_api_allowed_cidrs
       - load_balancer_ingress_cidrs
       - load_balancer_ingress_ports
-  - title: "Full Stack DR IAM"
-    variables:
-      - enable_fsdr_iam
   - title: "Advanced Optional Settings"
     variables:
       - primary_region_short_name
@@ -58,10 +54,8 @@ variableGroups:
     visible: false
     variables:
       - tenancy_ocid
-      - fsdr_iam_tenancy_ocid
       - auth
       - config_file_profile
-      - oci_config_file_path
       - user_ocid
       - fingerprint
       - private_key_path
@@ -88,12 +82,6 @@ variables:
     description: "OCI region for the standby OKE cluster."
     required: true
     default: "eu-madrid-1"
-
-  home_region:
-    type: oci:identity:region:name
-    title: "Tenancy home region"
-    description: "Region used to create IAM resources. Leave empty to use the primary region."
-    required: false
 
   name_prefix:
     type: string
@@ -276,13 +264,6 @@ variables:
     required: false
     default: '[80, 443]'
 
-  enable_fsdr_iam:
-    type: boolean
-    title: "Create Full Stack DR IAM"
-    description: "Create the dynamic group and policies required by Full Stack DR resource principals."
-    required: true
-    default: true
-
   primary_region_short_name:
     type: string
     title: "Primary region short name"
@@ -316,12 +297,6 @@ variables:
     visible: false
     sensitive: true
 
-  fsdr_iam_tenancy_ocid:
-    type: string
-    title: "FSDR IAM tenancy OCID override"
-    required: false
-    visible: false
-
   auth:
     type: string
     title: "Provider authentication mode"
@@ -331,12 +306,6 @@ variables:
   config_file_profile:
     type: string
     title: "OCI config profile"
-    required: false
-    visible: false
-
-  oci_config_file_path:
-    type: string
-    title: "OCI config file path"
     required: false
     visible: false
 
@@ -384,15 +353,9 @@ outputs:
   standby:
     type: map
     title: "Standby region"
-  fsdr_iam:
-    type: map
-    title: "Full Stack DR IAM"
 
 outputGroups:
   - title: "Cluster Outputs"
     outputs:
       - primary
       - standby
-  - title: "Disaster Recovery Outputs"
-    outputs:
-      - fsdr_iam
