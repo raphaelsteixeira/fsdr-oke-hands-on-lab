@@ -60,9 +60,6 @@ module "primary_oke" {
   load_balancer_ingress_ports  = var.load_balancer_ingress_ports
   enable_file_storage          = true
   vcn_cidr                     = var.primary_vcn_cidr
-  remote_vcn_cidr              = var.standby_vcn_cidr
-  remote_worker_subnet_cidr    = var.standby_worker_subnet_cidr
-  remote_pod_subnet_cidr       = var.standby_pod_subnet_cidr
   api_endpoint_subnet_cidr     = var.primary_api_endpoint_subnet_cidr
   worker_subnet_cidr           = var.primary_worker_subnet_cidr
   pod_subnet_cidr              = var.primary_pod_subnet_cidr
@@ -97,9 +94,6 @@ module "standby_oke" {
   load_balancer_ingress_cidrs  = var.load_balancer_ingress_cidrs
   load_balancer_ingress_ports  = var.load_balancer_ingress_ports
   vcn_cidr                     = var.standby_vcn_cidr
-  remote_vcn_cidr              = var.primary_vcn_cidr
-  remote_worker_subnet_cidr    = var.primary_worker_subnet_cidr
-  remote_pod_subnet_cidr       = var.primary_pod_subnet_cidr
   api_endpoint_subnet_cidr     = var.standby_api_endpoint_subnet_cidr
   worker_subnet_cidr           = var.standby_worker_subnet_cidr
   pod_subnet_cidr              = var.standby_pod_subnet_cidr

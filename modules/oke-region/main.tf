@@ -39,7 +39,7 @@ locals {
   ]
   selected_node_image_id = var.node_image_id != null ? var.node_image_id : try(local.default_node_image_ids[0], null)
 
-  api_allowed_cidrs = distinct(concat([var.vcn_cidr, var.remote_vcn_cidr], var.kube_api_allowed_cidrs))
+  api_allowed_cidrs = distinct(concat([var.vcn_cidr], var.kube_api_allowed_cidrs))
   api_endpoint_registration_ingress_rules = flatten([
     for source in [var.worker_subnet_cidr, var.pod_subnet_cidr] : [
       for port in [6443, 12250] : {
@@ -76,18 +76,7 @@ locals {
       }
     ]
   ])
-  file_storage_hostname_label            = substr("fss${replace(lower("${var.name_prefix}${local.region_name_label}"), "/[^a-z0-9]/", "")}", 0, 15)
-  object_storage_private_endpoint_prefix = substr("ospe${replace(lower("${var.name_prefix}${local.region_name_label}"), "/[^a-z0-9]/", "")}", 0, 15)
-  object_storage_private_endpoint_source_cidrs = distinct([
-    var.worker_subnet_cidr,
-    var.pod_subnet_cidr,
-    var.remote_worker_subnet_cidr,
-    var.remote_pod_subnet_cidr
-  ])
-  remote_private_route_cidrs = tolist(setsubtract(
-    toset([var.remote_worker_subnet_cidr, var.remote_pod_subnet_cidr]),
-    toset([var.remote_vcn_cidr])
-  ))
+  file_storage_hostname_label = substr("fss${replace(lower("${var.name_prefix}${local.region_name_label}"), "/[^a-z0-9]/", "")}", 0, 15)
   object_storage_buckets = {
     fsdr_logs = {
       name        = "${local.bucket_prefix}-fsdr-logs"
@@ -148,25 +137,6 @@ resource "oci_core_service_gateway" "this" {
   }
 }
 
-resource "oci_core_drg" "this" {
-  compartment_id = var.compartment_ocid
-  display_name   = "${local.resource_prefix}-drg"
-  freeform_tags  = local.common_tags
-}
-
-resource "oci_core_drg_attachment" "vcn" {
-  drg_id       = oci_core_drg.this.id
-  display_name = "${local.resource_prefix}-vcn-drg-attachment"
-  freeform_tags = merge(local.common_tags, {
-    attachment_type = "vcn"
-  })
-
-  network_details {
-    id   = oci_core_vcn.this.id
-    type = "VCN"
-  }
-}
-
 resource "oci_core_route_table" "public" {
   compartment_id = var.compartment_ocid
   display_name   = "${local.resource_prefix}-public-rt"
@@ -177,12 +147,6 @@ resource "oci_core_route_table" "public" {
     destination       = "0.0.0.0/0"
     destination_type  = "CIDR_BLOCK"
     network_entity_id = oci_core_internet_gateway.this.id
-  }
-
-  route_rules {
-    destination       = var.remote_vcn_cidr
-    destination_type  = "CIDR_BLOCK"
-    network_entity_id = oci_core_drg.this.id
   }
 }
 
@@ -202,22 +166,6 @@ resource "oci_core_route_table" "private" {
     destination       = data.oci_core_services.all_services.services[0].cidr_block
     destination_type  = "SERVICE_CIDR_BLOCK"
     network_entity_id = oci_core_service_gateway.this.id
-  }
-
-  route_rules {
-    destination       = var.remote_vcn_cidr
-    destination_type  = "CIDR_BLOCK"
-    network_entity_id = oci_core_drg.this.id
-  }
-
-  dynamic "route_rules" {
-    for_each = toset(local.remote_private_route_cidrs)
-
-    content {
-      destination       = route_rules.value
-      destination_type  = "CIDR_BLOCK"
-      network_entity_id = oci_core_drg.this.id
-    }
   }
 }
 
@@ -245,13 +193,6 @@ resource "oci_core_network_security_group" "pods" {
 resource "oci_core_network_security_group" "load_balancers" {
   compartment_id = var.compartment_ocid
   display_name   = "${local.resource_prefix}-lb-nsg"
-  vcn_id         = oci_core_vcn.this.id
-  freeform_tags  = local.common_tags
-}
-
-resource "oci_core_network_security_group" "object_storage_private_endpoint" {
-  compartment_id = var.compartment_ocid
-  display_name   = "${local.resource_prefix}-object-storage-pe-nsg"
   vcn_id         = oci_core_vcn.this.id
   freeform_tags  = local.common_tags
 }
@@ -351,17 +292,6 @@ resource "oci_core_network_security_group_security_rule" "workers_ingress_vcn" {
   source_type               = "CIDR_BLOCK"
 }
 
-resource "oci_core_network_security_group_security_rule" "workers_ingress_remote_vcn" {
-  count = var.remote_vcn_cidr == var.vcn_cidr ? 0 : 1
-
-  network_security_group_id = oci_core_network_security_group.workers.id
-  description               = "Allow required traffic from the peered remote VCN to worker nodes."
-  direction                 = "INGRESS"
-  protocol                  = "all"
-  source                    = var.remote_vcn_cidr
-  source_type               = "CIDR_BLOCK"
-}
-
 resource "oci_core_network_security_group_security_rule" "workers_ingress_api_endpoint_kubelet" {
   network_security_group_id = oci_core_network_security_group.workers.id
   description               = "Allow OKE API endpoint to reach kubelet on worker nodes."
@@ -410,17 +340,6 @@ resource "oci_core_network_security_group_security_rule" "pods_ingress_vcn" {
   source_type               = "CIDR_BLOCK"
 }
 
-resource "oci_core_network_security_group_security_rule" "pods_ingress_remote_vcn" {
-  count = var.remote_vcn_cidr == var.vcn_cidr ? 0 : 1
-
-  network_security_group_id = oci_core_network_security_group.pods.id
-  description               = "Allow required traffic from the peered remote VCN to pods."
-  direction                 = "INGRESS"
-  protocol                  = "all"
-  source                    = var.remote_vcn_cidr
-  source_type               = "CIDR_BLOCK"
-}
-
 resource "oci_core_network_security_group_security_rule" "load_balancers_egress_all" {
   network_security_group_id = oci_core_network_security_group.load_balancers.id
   description               = "Allow load balancer egress to worker backends."
@@ -446,76 +365,6 @@ resource "oci_core_network_security_group_security_rule" "load_balancers_ingress
     destination_port_range {
       min = each.value.port
       max = each.value.port
-    }
-  }
-}
-
-resource "oci_core_network_security_group_security_rule" "object_storage_private_endpoint_ingress_https" {
-  network_security_group_id = oci_core_network_security_group.object_storage_private_endpoint.id
-  description               = "Allow worker nodes to access Object Storage private endpoint on HTTPS."
-  direction                 = "INGRESS"
-  protocol                  = "6"
-  source                    = var.worker_subnet_cidr
-  source_type               = "CIDR_BLOCK"
-
-  tcp_options {
-    destination_port_range {
-      min = 443
-      max = 443
-    }
-  }
-}
-
-resource "oci_core_network_security_group_security_rule" "object_storage_private_endpoint_ingress_pod_https" {
-  count = var.pod_subnet_cidr == var.worker_subnet_cidr ? 0 : 1
-
-  network_security_group_id = oci_core_network_security_group.object_storage_private_endpoint.id
-  description               = "Allow pods to access Object Storage private endpoint on HTTPS."
-  direction                 = "INGRESS"
-  protocol                  = "6"
-  source                    = var.pod_subnet_cidr
-  source_type               = "CIDR_BLOCK"
-
-  tcp_options {
-    destination_port_range {
-      min = 443
-      max = 443
-    }
-  }
-}
-
-resource "oci_core_network_security_group_security_rule" "object_storage_private_endpoint_ingress_remote_worker_https" {
-  count = contains([var.worker_subnet_cidr, var.pod_subnet_cidr], var.remote_worker_subnet_cidr) ? 0 : 1
-
-  network_security_group_id = oci_core_network_security_group.object_storage_private_endpoint.id
-  description               = "Allow peered remote worker nodes to access Object Storage private endpoint on HTTPS."
-  direction                 = "INGRESS"
-  protocol                  = "6"
-  source                    = var.remote_worker_subnet_cidr
-  source_type               = "CIDR_BLOCK"
-
-  tcp_options {
-    destination_port_range {
-      min = 443
-      max = 443
-    }
-  }
-}
-
-resource "oci_core_network_security_group_security_rule" "object_storage_private_endpoint_ingress_remote_pod_https" {
-  count = contains([var.worker_subnet_cidr, var.pod_subnet_cidr, var.remote_worker_subnet_cidr], var.remote_pod_subnet_cidr) ? 0 : 1
-
-  network_security_group_id = oci_core_network_security_group.object_storage_private_endpoint.id
-  description               = "Allow peered remote pods to access Object Storage private endpoint on HTTPS."
-  direction                 = "INGRESS"
-  protocol                  = "6"
-  source                    = var.remote_pod_subnet_cidr
-  source_type               = "CIDR_BLOCK"
-
-  tcp_options {
-    destination_port_range {
-      min = 443
-      max = 443
     }
   }
 }
@@ -601,26 +450,6 @@ resource "oci_core_subnet" "load_balancers" {
   security_list_ids          = [oci_core_security_list.empty.id]
   vcn_id                     = oci_core_vcn.this.id
   freeform_tags              = local.common_tags
-}
-
-resource "oci_objectstorage_private_endpoint" "this" {
-  compartment_id = var.compartment_ocid
-  name           = "${local.resource_prefix}-object-storage-pe"
-  namespace      = data.oci_objectstorage_namespace.this.namespace
-  prefix         = local.object_storage_private_endpoint_prefix
-  subnet_id      = oci_core_subnet.workers.id
-  nsg_ids        = [oci_core_network_security_group.object_storage_private_endpoint.id]
-  freeform_tags  = local.common_tags
-
-  dynamic "access_targets" {
-    for_each = oci_objectstorage_bucket.this
-
-    content {
-      bucket         = access_targets.value.name
-      compartment_id = var.compartment_ocid
-      namespace      = access_targets.value.namespace
-    }
-  }
 }
 
 resource "oci_file_storage_file_system" "this" {

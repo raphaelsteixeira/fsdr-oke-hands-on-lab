@@ -1,5 +1,5 @@
 title: "OKE DR Hands-on Lab"
-description: "Deploy dual-region OKE clusters with DRG peering, private Object Storage endpoints, File Storage, and Full Stack DR IAM policies."
+description: "Deploy dual-region OKE clusters with Object Storage buckets, File Storage, and Full Stack DR IAM policies."
 stackDescription: "Dual-region OKE disaster recovery hands-on lab."
 schemaVersion: 1.1.0
 version: "20260517"
@@ -384,12 +384,6 @@ outputs:
   standby:
     type: map
     title: "Standby region"
-  drg_peering:
-    type: map
-    title: "DRG peering"
-  object_storage_cross_region_access:
-    type: map
-    title: "Object Storage cross-region access"
   fsdr_iam:
     type: map
     title: "Full Stack DR IAM"
@@ -401,6 +395,4 @@ outputGroups:
       - standby
   - title: "Disaster Recovery Outputs"
     outputs:
-      - drg_peering
-      - object_storage_cross_region_access
       - fsdr_iam

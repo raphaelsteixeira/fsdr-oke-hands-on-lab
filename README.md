@@ -9,12 +9,10 @@ This Terraform creates two independent Oracle Kubernetes Engine (OKE) environmen
 - Two worker nodes per cluster by default.
 - A standard public/private OKE network topology per region.
 - Two private Object Storage buckets per region: one for FSDR logs and one for OKE backup.
-- One Object Storage private endpoint per region, in the worker node subnet, scoped to the regional buckets and reachable from the local and peered worker and pod subnets.
 - One OCI File Storage file system on the primary side, with its mount target in the primary worker node subnet.
-- Cross-region VCN peering through Dynamic Routing Gateways (DRGs) and remote peering connections.
 - Full Stack DR resource-principal IAM: dynamic group and policy statements for the deployment compartment.
 
-Each region gets its own VCN, public Kubernetes API endpoint subnet, private worker subnet, private pod subnet for OCI VCN-native pod networking, public load balancer subnet, internet gateway, NAT gateway, service gateway, DRG, route tables, Network Security Groups (NSGs), Object Storage buckets, and an Object Storage private endpoint. The primary region also gets File Storage. IAM resources are created through the home-region provider alias.
+Each region gets its own VCN, public Kubernetes API endpoint subnet, private worker subnet, private pod subnet for OCI VCN-native pod networking, public load balancer subnet, internet gateway, NAT gateway, service gateway, route tables, Network Security Groups (NSGs), and Object Storage buckets. The primary region also gets File Storage. IAM resources are created through the home-region provider alias.
 
 ## Files
 
@@ -81,7 +79,7 @@ terraform apply
 
 After apply, Terraform outputs the `oci ce cluster create-kubeconfig` commands for both clusters.
 
-The outputs also include DRG peering details, the regional Object Storage bucket names and namespaces for FSDR logs and OKE backup, Object Storage private endpoint details, the Full Stack DR IAM resource names and IDs, plus the primary File Storage mount target details.
+The outputs also include the regional Object Storage bucket names and namespaces for FSDR logs and OKE backup, the Full Stack DR IAM resource names and IDs, plus the primary File Storage mount target details.
 
 ## Full Stack DR IAM
 
@@ -116,41 +114,29 @@ enable_fsdr_iam = false
 - `cluster_type`: defaults to `ENHANCED_CLUSTER`.
 - `node_pool_os_type` and `node_pool_os_arch`: control the OKE worker image family selected from OCI node pool options. The default is `OL8` and `X86_64`.
 - `node_image_id`: optionally pin a region-local custom worker image OCID instead of selecting from OCI node pool options.
-- `kube_api_allowed_cidrs`: restrict public access to the Kubernetes API endpoint. The regional and peered VCN CIDRs are always allowed.
+- `kube_api_allowed_cidrs`: restrict public access to the Kubernetes API endpoint. The regional VCN CIDR is always allowed.
 - `load_balancer_ingress_cidrs` and `load_balancer_ingress_ports`: restrict public load balancer exposure.
 
 ## Network Security Groups
 
-The module creates five base NSGs per region:
+The module creates four base NSGs per region:
 
 - API endpoint NSG: attached to the OKE Kubernetes API endpoint.
 - Worker NSG: attached to worker node VNICs and configured as the default backend NSG for OKE load balancers.
 - Pod NSG: attached to pod VNICs when using OCI VCN-native pod networking.
 - Load balancer NSG: created with public ingress rules for `load_balancer_ingress_ports`; use its OCID in Kubernetes service annotations when you want a service load balancer to join this NSG.
-- Object Storage private endpoint NSG: attached to the regional Object Storage private endpoint and allows HTTPS from the local and peered remote worker and pod subnets.
 
 When File Storage is enabled on the primary region, the module also creates a File Storage NSG and attaches it to the mount target.
 
 The API endpoint NSG includes the OKE-required worker and pod registration paths to TCP/6443 and TCP/12250. The worker NSG also allows API-endpoint-to-kubelet traffic on TCP/10250 and ICMP type 3/code 4 for path MTU discovery.
 
-The worker, pod, and Kubernetes API endpoint NSGs also allow the peered remote VCN CIDR so resources can communicate across the DRG peering path. The Object Storage private endpoint NSG allows TCP/443 from the opposite region's worker and pod subnets so one region can write to buckets through the other region's private endpoint.
-
 The Kubernetes API endpoint has public access enabled and remains protected by the API endpoint NSG. For a safer lab, replace `0.0.0.0/0` in `kube_api_allowed_cidrs` with your workstation, VPN, or corporate egress CIDR.
 
 OCI requires every subnet to be associated with at least one security list. To keep packet access controlled by NSGs, the module attaches a single empty security list to the subnets and places all allow rules in NSGs.
 
-The worker and pod subnets route `0.0.0.0/0` through the NAT gateway for outbound internet access. Their private route table also keeps the service gateway route to Oracle Services Network and the DRG routes to the peered region.
+The worker and pod subnets route `0.0.0.0/0` through the NAT gateway for outbound internet access. Their private route table also keeps the service gateway route to Oracle Services Network.
 
 For Kubernetes `Service` objects of type `LoadBalancer`, Oracle recommends NSG rule management through annotations such as `oci.oraclecloud.com/security-rule-management-mode: "NSG"`. To attach a load balancer to the Terraform-created frontend NSG, use `oci.oraclecloud.com/oci-network-security-groups` with the regional `load_balancers` NSG OCID from Terraform outputs.
-
-## DRG Peering
-
-Each region creates a DRG and attaches it to the regional VCN. The root module creates remote peering connections between the two DRGs:
-
-- `${name_prefix}-${primary_region_short_name}-to-${standby_region_short_name}-rpc`
-- `${name_prefix}-${standby_region_short_name}-to-${primary_region_short_name}-rpc`
-
-Both regional public and private route tables include a route to the opposite VCN CIDR through the local DRG. RPC IDs and peering status are returned in the `drg_peering` output.
 
 ## File Storage
 
@@ -260,9 +246,7 @@ Each region creates two private Object Storage buckets:
 
 The OKE backup bucket has object versioning enabled. Bucket names are returned in the `primary.object_storage_buckets` and `standby.object_storage_buckets` outputs.
 
-Each region also creates one Object Storage private endpoint in the worker node subnet. The endpoint access targets are restricted to the two regional buckets, and the endpoint NSG allows TCP/443 from both the local worker and pod subnets and the peered remote worker and pod subnets. The private route table in each region sends the opposite VCN CIDR through the local DRG and also includes more specific routes for the opposite worker and pod subnets, so cross-region bucket writes use the destination region's private endpoint over the DRG peering path.
-
-Use the destination region private endpoint FQDN when writing to the opposite region's buckets. For example, primary workloads write to standby buckets using `standby.object_storage_private_endpoint.private_endpoint_fqdn`, and standby workloads write to primary buckets using `primary.object_storage_private_endpoint.private_endpoint_fqdn`. OCI creates the private DNS zone in the endpoint VCN; if clients in the peered VCN cannot resolve the FQDN, map that FQDN to the returned `private_endpoint_ip` or configure private DNS forwarding between the VCNs.
+Workloads use the standard regional Object Storage endpoints and the VCN service gateway or NAT gateway paths provided by the regional network topology.
 
 ## Notes
 

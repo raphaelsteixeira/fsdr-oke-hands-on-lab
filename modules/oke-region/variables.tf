@@ -28,21 +28,6 @@ variable "vcn_cidr" {
   type        = string
 }
 
-variable "remote_vcn_cidr" {
-  description = "CIDR block for the peered remote region's VCN."
-  type        = string
-}
-
-variable "remote_worker_subnet_cidr" {
-  description = "CIDR block for the peered remote region's private worker node subnet."
-  type        = string
-}
-
-variable "remote_pod_subnet_cidr" {
-  description = "CIDR block for the peered remote region's private pod subnet."
-  type        = string
-}
-
 variable "api_endpoint_subnet_cidr" {
   description = "CIDR block for the Kubernetes API endpoint subnet."
   type        = string
