@@ -16,6 +16,14 @@ spec:
     requests:
       storage: 50Gi
 ---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: oci-fss
+provisioner: fss.csi.oraclecloud.com
+parameters:
+  mntTargetId: "ocid1.mounttarget."
+---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -30,7 +38,7 @@ spec:
   storageClassName: oci-fss
   csi:
     driver: fss.csi.oraclecloud.com
-    volumeHandle: ocid1.filesystem.oc1.eu_frankfurt_1.aaaaaaaaaan5hy3wmzzgcllqojxwiotfouwwm4tbnzvwm5lsoqwtcllbmqwtcaaa:10.10.10.207:/oke
+    volumeHandle: ocid1.filesystem:10.10.10.207:/oke
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
