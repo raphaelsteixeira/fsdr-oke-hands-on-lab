@@ -3,6 +3,10 @@ compartment_ocid = "ocid1.compartment.oc1..replace-me"
 primary_region   = "eu-frankfurt-1"
 standby_region   = "eu-madrid-1"
 
+# Optional when creating Full Stack DR IAM resources.
+# fsdr_iam_tenancy_ocid = "ocid1.tenancy.oc1..replace-me"
+# home_region = "eu-frankfurt-1"
+
 # Optional lab naming
 name_prefix = "oke-dr-lab"
 # Optional short labels used in OCI resource names. Defaults are fra and mad for the regions above.

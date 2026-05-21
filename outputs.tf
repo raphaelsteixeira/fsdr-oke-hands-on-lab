@@ -34,3 +34,17 @@ output "standby" {
     kubeconfig_private_command = "oci ce cluster create-kubeconfig --cluster-id ${module.standby_oke.cluster_id} --file $HOME/.kube/config --region ${var.standby_region} --token-version 2.0.0 --kube-endpoint PRIVATE_ENDPOINT"
   }
 }
+
+output "fsdr_iam" {
+  description = "Full Stack DR resource-principal IAM resources."
+  value = var.enable_fsdr_iam && local.fsdr_iam_tenancy_ocid != null ? {
+    home_region          = local.home_region
+    tenancy_ocid         = local.fsdr_iam_tenancy_ocid
+    target_compartment   = var.compartment_ocid
+    dynamic_group_id     = oci_identity_dynamic_group.fsdr_resource_principals[0].id
+    dynamic_group_name   = oci_identity_dynamic_group.fsdr_resource_principals[0].name
+    policy_id            = oci_identity_policy.fsdr_resource_principal[0].id
+    policy_name          = oci_identity_policy.fsdr_resource_principal[0].name
+    policy_statement_cnt = length(local.fsdr_policy_permissions)
+  } : null
+}
