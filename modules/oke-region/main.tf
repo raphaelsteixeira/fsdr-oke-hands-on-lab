@@ -77,6 +77,9 @@ locals {
     ]
   ])
   file_storage_hostname_label = substr("fss${replace(lower("${var.name_prefix}${local.region_name_label}"), "/[^a-z0-9]/", "")}", 0, 15)
+  enable_file_storage_mount_target = (
+    var.enable_file_storage || var.enable_file_storage_mount_target
+  )
   object_storage_buckets = {
     fsdr_logs = {
       name        = "${local.bucket_prefix}-fsdr-logs"
@@ -198,7 +201,7 @@ resource "oci_core_network_security_group" "load_balancers" {
 }
 
 resource "oci_core_network_security_group" "file_storage" {
-  count = var.enable_file_storage ? 1 : 0
+  count = local.enable_file_storage_mount_target ? 1 : 0
 
   compartment_id = var.compartment_ocid
   display_name   = "${local.resource_prefix}-fss-nsg"
@@ -370,7 +373,7 @@ resource "oci_core_network_security_group_security_rule" "load_balancers_ingress
 }
 
 resource "oci_core_network_security_group_security_rule" "file_storage_ingress_nfs" {
-  for_each = var.enable_file_storage ? {
+  for_each = local.enable_file_storage_mount_target ? {
     for rule in local.file_storage_nfs_ingress_rules : "${rule.protocol_name}-${rule.port}" => rule
   } : {}
 
@@ -462,7 +465,7 @@ resource "oci_file_storage_file_system" "this" {
 }
 
 resource "oci_file_storage_mount_target" "this" {
-  count = var.enable_file_storage ? 1 : 0
+  count = local.enable_file_storage_mount_target ? 1 : 0
 
   availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
   compartment_id      = var.compartment_ocid

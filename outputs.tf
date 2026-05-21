@@ -29,6 +29,7 @@ output "standby" {
     subnet_ids                 = module.standby_oke.subnet_ids
     nsg_ids                    = module.standby_oke.nsg_ids
     object_storage_buckets     = module.standby_oke.object_storage_buckets
+    file_storage               = module.standby_oke.file_storage
     kubeconfig_command         = "oci ce cluster create-kubeconfig --cluster-id ${module.standby_oke.cluster_id} --file $HOME/.kube/config --region ${var.standby_region} --token-version 2.0.0 --kube-endpoint PUBLIC_ENDPOINT"
     kubeconfig_public_command  = "oci ce cluster create-kubeconfig --cluster-id ${module.standby_oke.cluster_id} --file $HOME/.kube/config --region ${var.standby_region} --token-version 2.0.0 --kube-endpoint PUBLIC_ENDPOINT"
     kubeconfig_private_command = "oci ce cluster create-kubeconfig --cluster-id ${module.standby_oke.cluster_id} --file $HOME/.kube/config --region ${var.standby_region} --token-version 2.0.0 --kube-endpoint PRIVATE_ENDPOINT"

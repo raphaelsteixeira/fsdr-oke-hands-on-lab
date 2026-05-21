@@ -131,6 +131,12 @@ variable "enable_file_storage" {
   default     = false
 }
 
+variable "enable_file_storage_mount_target" {
+  description = "Whether to create an OCI File Storage mount target and NSG in this region."
+  type        = bool
+  default     = false
+}
+
 variable "file_storage_export_path" {
   description = "Export path for the regional OCI File Storage file system."
   type        = string

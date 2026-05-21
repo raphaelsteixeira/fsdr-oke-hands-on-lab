@@ -9,10 +9,11 @@ This Terraform creates two independent Oracle Kubernetes Engine (OKE) environmen
 - Two worker nodes per cluster by default.
 - A standard public/private OKE network topology per region.
 - Two private Object Storage buckets per region: one for FSDR logs and one for OKE backup.
-- One OCI File Storage file system on the primary side, with its mount target in the primary worker node subnet.
+- One OCI File Storage file system, mount target, and export on the primary side.
+- One OCI File Storage mount target on the standby side, in the standby worker node subnet.
 - Full Stack DR resource-principal IAM: dynamic group and policy statements for the deployment compartment.
 
-Each region gets its own VCN, public Kubernetes API endpoint subnet, private worker subnet, private pod subnet for OCI VCN-native pod networking, public load balancer subnet, internet gateway, NAT gateway, service gateway, route tables, Network Security Groups (NSGs), and Object Storage buckets. The primary region also gets File Storage. IAM resources are created through the home-region provider alias.
+Each region gets its own VCN, public Kubernetes API endpoint subnet, private worker subnet, private pod subnet for OCI VCN-native pod networking, public load balancer subnet, internet gateway, NAT gateway, service gateway, route tables, Network Security Groups (NSGs), Object Storage buckets, and a File Storage mount target. The primary region also gets a File Storage file system and export. IAM resources are created through the home-region provider alias.
 
 ## Files
 
@@ -80,7 +81,7 @@ terraform apply
 
 After apply, Terraform outputs the `oci ce cluster create-kubeconfig` commands for both clusters.
 
-The outputs also include the regional Object Storage bucket names and namespaces for FSDR logs and OKE backup, the Full Stack DR IAM resource names and IDs, plus the primary File Storage mount target details.
+The outputs also include the regional Object Storage bucket names and namespaces for FSDR logs and OKE backup, the Full Stack DR IAM resource names and IDs, plus the primary and standby File Storage mount target details.
 
 ## Full Stack DR IAM
 
@@ -127,7 +128,7 @@ The module creates four base NSGs per region:
 - Pod NSG: attached to pod VNICs when using OCI VCN-native pod networking.
 - Load balancer NSG: created with public ingress rules for `load_balancer_ingress_ports`; use its OCID in Kubernetes service annotations when you want a service load balancer to join this NSG.
 
-When File Storage is enabled on the primary region, the module also creates a File Storage NSG and attaches it to the mount target.
+When a File Storage mount target is enabled in a region, the module also creates a File Storage NSG and attaches it to the mount target.
 
 The API endpoint NSG includes the OKE-required worker and pod registration paths to TCP/6443 and TCP/12250. The worker NSG also allows API-endpoint-to-kubelet traffic on TCP/10250 and ICMP type 3/code 4 for path MTU discovery.
 
@@ -147,7 +148,11 @@ The primary region creates one OCI File Storage file system, mount target, and e
 - Mount target: `${name_prefix}-${primary_region_short_name}-fss-mt`
 - Export path: `/oke`
 
-The mount target is created in the primary worker subnet and is protected by a dedicated File Storage NSG. The NSG allows TCP ports `111`, `2048`, `2049`, `2050`, and `20048`, plus UDP ports `111`, `2048`, and `20048`, from the worker subnet CIDR. Mount target IP, export path, and a sample `mount` command are returned in `primary.file_storage`.
+The standby region creates a File Storage mount target in the standby worker subnet:
+
+- Mount target: `${name_prefix}-${standby_region_short_name}-fss-mt`
+
+Each mount target is protected by a dedicated File Storage NSG. The NSG allows TCP ports `111`, `2048`, `2049`, `2050`, and `20048`, plus UDP ports `111`, `2048`, and `20048`, from the regional worker subnet CIDR. Mount target details are returned in `primary.file_storage` and `standby.file_storage`. The primary output also includes the export path and a sample `mount` command.
 
 ## Verify Kubernetes Volumes
 

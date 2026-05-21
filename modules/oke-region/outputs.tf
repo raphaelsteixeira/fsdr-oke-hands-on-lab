@@ -61,17 +61,17 @@ output "object_storage_buckets" {
 }
 
 output "file_storage" {
-  description = "Primary-region File Storage details when enabled."
-  value = try({
-    file_system_id      = oci_file_storage_file_system.this[0].id
-    file_system_name    = oci_file_storage_file_system.this[0].display_name
+  description = "Regional File Storage mount target details when enabled."
+  value = local.enable_file_storage_mount_target ? {
+    file_system_id      = try(oci_file_storage_file_system.this[0].id, null)
+    file_system_name    = try(oci_file_storage_file_system.this[0].display_name, null)
     mount_target_id     = oci_file_storage_mount_target.this[0].id
     mount_target_name   = oci_file_storage_mount_target.this[0].display_name
     mount_target_ip     = oci_file_storage_mount_target.this[0].ip_address
     mount_target_subnet = oci_core_subnet.workers.id
-    export_id           = oci_file_storage_export.this[0].id
-    export_path         = oci_file_storage_export.this[0].path
-    mount_command       = "sudo mount -t nfs ${oci_file_storage_mount_target.this[0].ip_address}:${oci_file_storage_export.this[0].path} /mnt/oke"
+    export_id           = try(oci_file_storage_export.this[0].id, null)
+    export_path         = try(oci_file_storage_export.this[0].path, null)
+    mount_command       = try("sudo mount -t nfs ${oci_file_storage_mount_target.this[0].ip_address}:${oci_file_storage_export.this[0].path} /mnt/oke", null)
     nsg_id              = oci_core_network_security_group.file_storage[0].id
-  }, null)
+  } : null
 }
