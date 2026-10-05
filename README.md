@@ -39,9 +39,22 @@ When creating the stack:
 - Set `primary_region` and `standby_region`.
 - Set `fsdr_iam_tenancy_ocid` to your tenancy/root compartment OCID when Full Stack DR IAM creation is enabled.
 - Set `home_region` if your tenancy home region is different from the primary region.
+- Leave **Configure freeform tags** unchecked to use no tags, or enable it and enter at least one key/value pair.
 - Keep **Run apply** selected if you want Resource Manager to deploy immediately after stack creation.
 
 The deploy button uses the `main` branch zip file. For a fixed classroom version, create a GitHub release and update the button `zipUrl` to the release zip.
+
+### Validate the Resource Manager Form
+
+After editing `schema.yaml`, validate it against [Oracle's meta schema](https://docs.oracle.com/en-us/iaas/Content/ResourceManager/Concepts/terraformconfigresourcemanager_topic-schema.htm). Also run the local reference checks:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r tests/requirements.txt
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+For list and map controls, `valueType` names a hidden entry under `variables`, not a primitive type. Object `attributes` also name hidden entries, each with an `actualName` matching the Terraform attribute. The published meta schema checks the structure but does not catch undefined complex-variable references.
 
 ## Usage
 

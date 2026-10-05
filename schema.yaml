@@ -54,6 +54,7 @@ variableGroups:
       - primary_region_short_name
       - standby_region_short_name
       - node_image_id
+      - configure_freeform_tags
       - freeform_tags
   - title: "Local Authentication Fallbacks"
     visible: false
@@ -255,7 +256,7 @@ variables:
 
   kube_api_allowed_cidrs:
     type: list
-    valueType: string
+    valueType: cidr_value
     title: "Kubernetes API allowed CIDRs"
     description: "CIDR blocks allowed to reach the public Kubernetes API endpoint."
     required: false
@@ -263,7 +264,7 @@ variables:
 
   load_balancer_ingress_cidrs:
     type: list
-    valueType: string
+    valueType: cidr_value
     title: "Load balancer ingress CIDRs"
     description: "CIDR blocks allowed to reach public Kubernetes service load balancers."
     required: false
@@ -271,7 +272,7 @@ variables:
 
   load_balancer_ingress_ports:
     type: list
-    valueType: number
+    valueType: ingress_port
     title: "Load balancer ingress ports"
     description: "TCP ports allowed into the public load balancer subnet."
     required: false
@@ -308,11 +309,19 @@ variables:
     description: "Optional region-local OKE worker image OCID. Leave empty to auto-select a compatible image."
     required: false
 
+  configure_freeform_tags:
+    type: boolean
+    title: "Configure freeform tags"
+    description: "Enable to add one or more freeform tag key/value pairs."
+    default: false
+    required: false
+
   freeform_tags:
     type: map
-    valueType: string
+    valueType: freeform_tag_value
     title: "Freeform tags"
     description: "Optional freeform tags applied to created resources."
+    visible: ${configure_freeform_tags}
     required: false
     default: "{}"
 
@@ -375,8 +384,36 @@ variables:
     required: false
     visible: false
     attributes:
-      - ocpus
-      - memory_in_gbs
+      - node_shape_config_ocpus
+      - node_shape_config_memory_in_gbs
+
+  # Complex controls reference schema entries, not primitive type names.
+  cidr_value:
+    type: string
+    title: "CIDR block"
+    visible: false
+
+  ingress_port:
+    type: number
+    title: "TCP port"
+    visible: false
+
+  freeform_tag_value:
+    type: string
+    title: "Tag value"
+    visible: false
+
+  node_shape_config_ocpus:
+    type: number
+    title: "OCPUs"
+    actualName: ocpus
+    visible: false
+
+  node_shape_config_memory_in_gbs:
+    type: number
+    title: "Memory in GB"
+    actualName: memory_in_gbs
+    visible: false
 
 outputs:
   primary:
