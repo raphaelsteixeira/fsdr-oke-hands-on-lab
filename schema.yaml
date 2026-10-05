@@ -187,7 +187,8 @@ variables:
     minimum: 1
 
   ssh_public_key:
-    type: oci:core:ssh:publickey
+    type: text
+    multiline: true
     title: "SSH public key"
     description: "Optional SSH public key to inject into worker nodes."
     required: false
