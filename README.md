@@ -118,6 +118,80 @@ The groups start empty. Adding the OKE clusters, File Storage, and other members
 
 The `fsdr` output includes each group's OCID, display name, current role, peer OCID/region, and log bucket/namespace. Terraform reads both groups after pairing so the first apply returns their final roles.
 
+## Configure Full Stack DR After Terraform Deployment
+
+Terraform deploys the regional infrastructure, creates the FSDR log and OKE backup buckets, creates the resource-principal IAM resources (by default), and associates the primary and standby DR protection groups. It does not add the OKE clusters or storage to the groups, configure storage replication, or create DR plans. Complete the following steps after the stack apply.
+
+### 1. Record and verify the deployed resources
+
+In Resource Manager, open the stack's **Outputs** tab. For a local Terraform deployment, use:
+
+```bash
+terraform output fsdr
+terraform output primary
+terraform output standby
+```
+
+Record the two DR protection group names and OCIDs, the OKE cluster OCIDs, and each region's `oke_backup` bucket name. Verify that the primary group has role `PRIMARY`, the standby group has role `STANDBY`, and each group's peer points to the other. The output values reflect the actual region short names and bucket names for your deployment.
+
+### 2. Confirm IAM and console access
+
+If `enable_fsdr_iam = true`, check the `fsdr_iam` output for the generated dynamic group and policy. The policy authorizes the Full Stack DR resource principals to orchestrate resources in the deployment compartment. Allow new IAM policy changes time to propagate. If `enable_fsdr_iam = false`, have your tenancy administrator configure equivalent Full Stack DR and OKE policies before continuing. The user or group performing these console steps also needs permission to manage DR protection groups and plans, OKE, and any storage resources being added.
+
+### 3. Prepare the stateful workload's storage before adding it to DR
+
+This step is required if you deployed the sample `nginx-lab` workload and need its persistent data to recover. OKE cluster backup saves Kubernetes configuration; it does not by itself replicate the data in persistent volumes.
+
+- **Block volume at `/data/block`:** Find the block volume provisioned for `nginx-block-pvc`. Create a volume group in the volume's availability domain, add the volume, and configure cross-region volume-group replication to the standby region (or an appropriate cross-region backup workflow). The current Terraform stack does not create this volume group or replication.
+- **File Storage at `/data/fss`:** Terraform creates the primary file system and export, plus a standby mount target. It does not create a standby file system or replication. Configure File Storage replication to the standby region first. The standby mount target should be used for the destination export mapping when you add the file system member in step 5. Confirm the target region has the capacity and availability domains needed for failover.
+- **Kubernetes manifest:** Before applying `k8s/primary-nginx-lab.yaml`, replace its sample File Storage mount-target OCID and `volumeHandle` values with the deployed values from `primary.file_storage`. For recovery, account for the static NFS persistent volume: the restored Kubernetes resource must use the recovered file system and the standby mount target. Configure an OKE resource modifier mapping or an equivalent plan step for the standby values; the primary file system ID and mount-target IP cannot be reused there.
+
+For the File Storage replication lifecycle and failover constraints, see [File Storage replication for disaster recovery](https://docs.oracle.com/en-us/iaas/Content/File/Tasks/replication-disaster-recovery.htm). For OKE prerequisites and persistent-volume requirements, see [Preparing OKE for Disaster Recovery](https://docs.oracle.com/en-us/iaas/disaster-recovery/doc/prepare-oke-disaster-recovery.html) and [Preparing Block Storage for Full Stack DR](https://docs.oracle.com/en-us/iaas/disaster-recovery/doc/block-storage-disaster-recovery.html).
+
+### 4. Add the primary OKE cluster
+
+In the OCI Console, open **Migration & Disaster Recovery → Disaster Recovery → DR protection groups**, choose the deployment compartment, and open the primary DR protection group. Under **Members**, select **Add member** and choose **OKE Cluster**.
+
+Configure the primary cluster as follows:
+
+1. Select the primary OKE cluster from the Terraform output.
+2. Select the primary region's `${name_prefix}-${primary_region_short_name}-oke-backup` bucket (use the actual bucket name from the output).
+3. Enable the backup schedule. Choose an hourly or daily interval that meets the lab's recovery point objective, set a UTC start time, and choose a retention count.
+4. For namespaces, include all namespaces for the lab, or explicitly include every namespace and dependency needed by the application.
+5. Select the standby OKE cluster as the peer cluster. Configure image replication only for private images that need it; Full Stack DR does not replicate public images. Ensure the standby nodes can pull any public images the workload uses.
+6. If using the static File Storage volume above, configure the resource modifier mapping for the standby file system and mount target.
+7. Accept the plan-refresh warning and click **Add**.
+
+Oracle's [Add an OKE Cluster to a DR Protection Group](https://docs.oracle.com/iaas/disaster-recovery/doc/add-oke-cluster-protection-group.html) reference describes the member properties and optional advanced settings.
+
+### 5. Add the peer OKE cluster and replicated storage
+
+Follow the OKE-specific pairing workflow and open the standby DR protection group. Add the standby OKE cluster as an **OKE Cluster** member, select the standby region's OKE backup bucket, and set its peer to the primary OKE cluster. You can also configure a backup schedule for this cluster so its configuration is backed up if the DR roles later reverse. Accept the warning and add the member.
+
+Then, in the primary DR protection group, add the replicated stateful storage that the workload depends on:
+
+1. Select **Add member → Volume Group**. Choose the replicated volume group and provide its destination compartment and destination backup policy if prompted.
+2. Select **Add member → File system** for the replicated primary file system. Set the standby destination compartment and availability domain, and map the source `/oke` export to the Terraform-created standby mount target.
+3. Accept the plan-refresh warning for each member addition.
+
+Add only storage that has already been prepared for recovery. See [Add a Volume Group](https://docs.oracle.com/iaas/disaster-recovery/doc/add-volume-group.html) and [Add a File System](https://docs.oracle.com/en/cloud/iaas/disaster-recovery/cssgm/add-file-storage-system.html) for the member fields. The [Oracle stateful OKE tutorial](https://docs.oracle.com/en/learn/ocioke-plan-ocifsdr/index.html) shows the paired-cluster and volume-group workflow.
+
+### 6. Create and verify DR plans
+
+Plans are created in the currently **standby** protection group. Open the standby DR protection group's **Plans** page and create the plans needed for operations:
+
+- **Switchover** for a planned move to the standby region.
+- **Failover** for an unplanned recovery.
+- **Start Drill** and **Stop Drill** to test recovery without changing the production roles.
+
+If a plan existed before you added or changed members, refresh it and then verify it. Review the generated groups and steps against the actual OKE peer, backup buckets, storage replication, export mappings, and resource modifiers. Oracle requires a refreshed plan to be verified before use; see [Refresh a DR Plan](https://docs.oracle.com/en/cloud/iaas/disaster-recovery/cssgm/refresh-plan.html) and [Verify a DR Plan](https://docs.oracle.com/en-us/iaas/disaster-recovery/doc/verify-plan.html). If you add all members before creating plans, create the plans after step 5 so they are generated from the completed topology.
+
+### 7. Run prechecks and a drill
+
+Run the plan's **Prechecks** first and resolve every error or warning that affects recovery. Then execute **Start Drill**, connect to the standby cluster, and verify that the expected namespaces, pods, service endpoints, and persistent data are available. Execute **Stop Drill** when finished to clean up the drill resources. Do not use a production Switchover or Failover plan as a connectivity test; those plans perform a real DR transition.
+
+Repeat prechecks periodically and run drills on a schedule. A paired protection-group status alone does not mean application recovery is ready: readiness depends on successful backups, replicated storage, correct peer mappings, and verified plans.
+
 ### Verify Without Deploying
 
 With Terraform 1.7 or later, run the mocked tests. They use fake OCI providers and override the OKE modules, so no cloud resources are created and no OCI credentials are required:
