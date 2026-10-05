@@ -1,5 +1,5 @@
 title: "OKE DR Hands-on Lab"
-description: "Deploy dual-region OKE clusters with Object Storage buckets, File Storage, and Full Stack DR IAM policies."
+description: "Deploy dual-region OKE clusters with Object Storage buckets, File Storage, associated Full Stack DR protection groups, and IAM policies."
 stackDescription: "Dual-region OKE disaster recovery hands-on lab."
 schemaVersion: 1.1.0
 version: "20260517"
@@ -45,8 +45,9 @@ variableGroups:
       - kube_api_allowed_cidrs
       - load_balancer_ingress_cidrs
       - load_balancer_ingress_ports
-  - title: "Full Stack DR IAM"
+  - title: "Full Stack DR Settings"
     variables:
+      - enable_fsdr
       - enable_fsdr_iam
       - fsdr_iam_tenancy_ocid
   - title: "Advanced Optional Settings"
@@ -56,6 +57,7 @@ variableGroups:
       - node_image_id
       - configure_freeform_tags
       - freeform_tags
+      - fsdr_disassociate_trigger
   - title: "Local Authentication Fallbacks"
     visible: false
     variables:
@@ -278,6 +280,23 @@ variables:
     required: false
     default: '[80, 443]'
 
+  enable_fsdr:
+    type: boolean
+    title: "Create and associate DR protection groups"
+    description: "Create one DR protection group per region using the existing FSDR log buckets and associate them as PRIMARY and STANDBY."
+    required: true
+    default: true
+
+  fsdr_disassociate_trigger:
+    type: number
+    title: "DRPG disassociation trigger (maintenance only)"
+    description: "Leave at 0 for deployment. Before cleanup, increase this integer and run Apply to disassociate the groups. Keep that value when running Destroy."
+    required: false
+    default: 0
+    minimum: 0
+    multipleOf: 1
+    visible: ${enable_fsdr}
+
   enable_fsdr_iam:
     type: boolean
     title: "Create Full Stack DR IAM"
@@ -425,6 +444,9 @@ outputs:
   fsdr_iam:
     type: map
     title: "Full Stack DR IAM"
+  fsdr:
+    type: map
+    title: "Full Stack DR protection groups"
 
 outputGroups:
   - title: "Cluster Outputs"
@@ -433,4 +455,5 @@ outputGroups:
       - standby
   - title: "Disaster Recovery Outputs"
     outputs:
+      - fsdr
       - fsdr_iam

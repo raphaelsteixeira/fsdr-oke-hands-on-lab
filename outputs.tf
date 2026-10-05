@@ -36,6 +36,34 @@ output "standby" {
   }
 }
 
+output "fsdr" {
+  description = "Associated Full Stack DR protection groups and their regional log locations."
+  value = var.enable_fsdr ? {
+    primary = {
+      id                = oci_disaster_recovery_dr_protection_group.primary[0].id
+      name              = oci_disaster_recovery_dr_protection_group.primary[0].display_name
+      region            = var.primary_region
+      region_short_name = module.primary_oke.region_short_name
+      role              = data.oci_disaster_recovery_dr_protection_group.primary[0].role
+      peer_id           = data.oci_disaster_recovery_dr_protection_group.primary[0].peer_id
+      peer_region       = data.oci_disaster_recovery_dr_protection_group.primary[0].peer_region
+      log_bucket        = module.primary_oke.object_storage_buckets.fsdr_logs.name
+      log_namespace     = module.primary_oke.object_storage_buckets.fsdr_logs.namespace
+    }
+    standby = {
+      id                = oci_disaster_recovery_dr_protection_group.standby[0].id
+      name              = oci_disaster_recovery_dr_protection_group.standby[0].display_name
+      region            = var.standby_region
+      region_short_name = module.standby_oke.region_short_name
+      role              = data.oci_disaster_recovery_dr_protection_group.standby[0].role
+      peer_id           = data.oci_disaster_recovery_dr_protection_group.standby[0].peer_id
+      peer_region       = data.oci_disaster_recovery_dr_protection_group.standby[0].peer_region
+      log_bucket        = module.standby_oke.object_storage_buckets.fsdr_logs.name
+      log_namespace     = module.standby_oke.object_storage_buckets.fsdr_logs.namespace
+    }
+  } : null
+}
+
 output "fsdr_iam" {
   description = "Full Stack DR resource-principal IAM resources."
   value = var.enable_fsdr_iam && local.fsdr_iam_tenancy_ocid != null ? {

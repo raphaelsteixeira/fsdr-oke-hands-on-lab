@@ -3,6 +3,11 @@ compartment_ocid = "ocid1.compartment.oc1..replace-me"
 primary_region   = "eu-frankfurt-1"
 standby_region   = "eu-madrid-1"
 
+# Create the associated DR protection groups using the regional FSDR log buckets.
+enable_fsdr = true
+# Maintenance only: increase and apply before destroying the associated groups.
+# fsdr_disassociate_trigger = 0
+
 # Optional when creating Full Stack DR IAM resources.
 # fsdr_iam_tenancy_ocid = "ocid1.tenancy.oc1..replace-me"
 # home_region = "eu-frankfurt-1"

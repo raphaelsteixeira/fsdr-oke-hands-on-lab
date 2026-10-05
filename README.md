@@ -12,6 +12,7 @@ This Terraform creates two independent Oracle Kubernetes Engine (OKE) environmen
 - One OCI File Storage file system, mount target, and export on the primary side.
 - One OCI File Storage mount target on the standby side, in the standby worker node subnet.
 - Full Stack DR resource-principal IAM: dynamic group and policy statements for the deployment compartment.
+- One Full Stack DR protection group per region, associated as PRIMARY and STANDBY.
 
 Each region gets its own VCN, public Kubernetes API endpoint subnet, private worker subnet, private pod subnet for OCI VCN-native pod networking, public load balancer subnet, internet gateway, NAT gateway, service gateway, route tables, Network Security Groups (NSGs), Object Storage buckets, and a File Storage mount target. The primary region also gets a File Storage file system and export. IAM resources are created through the home-region provider alias.
 
@@ -20,6 +21,7 @@ Each region gets its own VCN, public Kubernetes API endpoint subnet, private wor
 - `versions.tf` pins Terraform and the OCI provider requirements.
 - `providers.tf` configures separate OCI provider aliases for the primary and standby regions.
 - `iam-fsdr.tf` creates the Full Stack DR dynamic group and policy.
+- `fsdr.tf` creates and associates the regional DR protection groups using the FSDR log buckets.
 - `schema.yaml` customizes the OCI Resource Manager stack creation form.
 - `variables.tf` defines all user-configurable values.
 - `main.tf` deploys the reusable OKE module twice.
@@ -39,6 +41,7 @@ When creating the stack:
 - Set `primary_region` and `standby_region`.
 - Set `fsdr_iam_tenancy_ocid` to your tenancy/root compartment OCID when Full Stack DR IAM creation is enabled.
 - Set `home_region` if your tenancy home region is different from the primary region.
+- Keep **Create and associate DR protection groups** enabled to configure the Full Stack DR pair.
 - Leave **Configure freeform tags** unchecked to use no tags, or enable it and enter at least one key/value pair.
 - Keep **Run apply** selected if you want Resource Manager to deploy immediately after stack creation.
 
@@ -94,7 +97,45 @@ terraform apply
 
 After apply, Terraform outputs the `oci ce cluster create-kubeconfig` commands for both clusters.
 
-The outputs also include the regional Object Storage bucket names and namespaces for FSDR logs and OKE backup, the Full Stack DR IAM resource names and IDs, plus the primary and standby File Storage mount target details.
+The outputs also include the regional Object Storage bucket names and namespaces for FSDR logs and OKE backup, the Full Stack DR IAM resource names and IDs, the associated DR protection groups in `fsdr`, plus the primary and standby File Storage mount target details.
+
+## Full Stack DR Protection Groups
+
+By default, `enable_fsdr = true` creates a DR protection group in each region in `compartment_ocid`:
+
+| Region | DR protection group | Log bucket | Initial role |
+| --- | --- | --- | --- |
+| `primary_region` | `${name_prefix}-${primary_region_short_name}-drpg` | `${name_prefix}-${primary_region_short_name}-fsdr-logs` | `PRIMARY` |
+| `standby_region` | `${name_prefix}-${standby_region_short_name}-drpg` | `${name_prefix}-${standby_region_short_name}-fsdr-logs` | `STANDBY` |
+
+The regional modules already create the dedicated, private, Standard-tier FSDR log buckets. This configuration reuses them without renaming or duplicating buckets; the separate OKE backup buckets are unchanged.
+
+Terraform first creates the DRPG in `primary_region` without an association. It then creates the DRPG in `standby_region` with the peer OCID, peer region, and role `STANDBY`. [OCI assigns the complementary role to the peer](https://docs.oracle.com/en-us/iaas/disaster-recovery/doc/create-dr-protection-groups.html), so both groups are associated in one deployment without a circular dependency. Their display names use the region short labels, such as `oke-dr-lab-fra-drpg` and `oke-dr-lab-mad-drpg`.
+
+When IAM is enabled, the groups wait for the Terraform-managed policy to be created. When `enable_fsdr_iam = false`, equivalent resource-principal policies must already exist. The identity running Terraform or Resource Manager also needs permission to manage DR protection groups in the deployment compartment and access their log buckets. New IAM permissions can take time to propagate; retry an authorization failure after they take effect.
+
+The groups start empty. Adding the OKE clusters, File Storage, and other members, configuring replication/backup prerequisites, and creating DR plans remain subsequent lab steps. Terraform deliberately ignores changes to DRPG membership so later manual lab additions are preserved. This configuration does not enable automatic application recovery on its own.
+
+The `fsdr` output includes each group's OCID, display name, current role, peer OCID/region, and log bucket/namespace. Terraform reads both groups after pairing so the first apply returns their final roles.
+
+### Verify Without Deploying
+
+With Terraform 1.7 or later, run the mocked tests. They use fake OCI providers and override the OKE modules, so no cloud resources are created and no OCI credentials are required:
+
+```bash
+terraform test -filter=tests/fsdr.tftest.hcl
+```
+
+### Cleanup
+
+[OCI requires disassociation before deleting a DR protection group](https://docs.oracle.com/en-us/iaas/disaster-recovery/doc/delete-dr-protection-group.html). Before destroying the stack, disabling `enable_fsdr`, or replacing either DRPG, increase `fsdr_disassociate_trigger` above its previously applied value and run **Apply** first. For the first cleanup, starting from the default `0`:
+
+```bash
+terraform apply -var="fsdr_disassociate_trigger=1"
+terraform destroy -var="fsdr_disassociate_trigger=1"
+```
+
+In Resource Manager, set the trigger to `1`, run an Apply job, verify that both groups are unassociated, and only then run Destroy. Keep the increased value for subsequent operations; do not reset it to `0`. If the groups were already disassociated in the Console, do not increment the trigger again. An association is a creation-time setting in the OCI provider, so re-associating an existing pair requires an explicit follow-up operation and is not achieved by resetting this trigger.
 
 ## Full Stack DR IAM
 
@@ -121,6 +162,8 @@ enable_fsdr_iam = false
 - `oci_config_file_path`: defaults to `~/.oci/config` and is only used as a tenancy OCID fallback for FSDR IAM.
 - `home_region`: tenancy home region for IAM resources; defaults to `primary_region`.
 - `enable_fsdr_iam`: set to `false` if IAM is handled separately.
+- `enable_fsdr`: defaults to `true`; set to `false` to skip DRPG creation. Existing groups must be disassociated before disabling this setting.
+- `fsdr_disassociate_trigger`: maintenance-only integer, initially `0`; increase and apply to disassociate the groups before cleanup.
 - `primary_region_short_name` and `standby_region_short_name`: optionally override the short region labels used in OCI resource names. The defaults are `fra` for `eu-frankfurt-1` and `mad` for `eu-madrid-1`.
 - `node_count`: number of worker nodes in each OKE cluster; defaults to `2`.
 - `node_shape`, `node_ocpus`, and `node_memory_in_gbs`: change worker sizing for Flex shapes.

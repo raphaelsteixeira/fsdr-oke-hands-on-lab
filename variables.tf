@@ -72,6 +72,25 @@ variable "tenancy_ocid" {
   sensitive   = true
 }
 
+variable "enable_fsdr" {
+  description = "Create and associate a Full Stack DR protection group in each region using the regional FSDR log buckets."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "fsdr_disassociate_trigger" {
+  description = "Maintenance only: increase this integer and apply to disassociate the DR protection groups before destroying or replacing them. Keep the increased value for subsequent operations."
+  type        = number
+  default     = 0
+  nullable    = false
+
+  validation {
+    condition     = var.fsdr_disassociate_trigger >= 0 && floor(var.fsdr_disassociate_trigger) == var.fsdr_disassociate_trigger
+    error_message = "fsdr_disassociate_trigger must be a non-negative integer."
+  }
+}
+
 variable "enable_fsdr_iam" {
   description = "Create the Full Stack DR resource-principal dynamic group and policies."
   type        = bool
